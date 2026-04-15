@@ -6,11 +6,11 @@ import os
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(BASE_DIR)
 
-from openai import OpenAI
+from llm.graph import get_openai_clients
 
 from constants import SYSTEM_PROMPT
 from config import Settings
-from middlewares.safety_mw_ing import profanity_middleware, pii_middleware
+from middlewares.safety_mw import profanity_middleware, pii_middleware
 from middlewares.pipeline import LLMRequest, LLMResponse, Pipeline
 from utils import (
     init_app,
@@ -19,7 +19,11 @@ from utils import (
     render_message,
     get_ai_response,
 )
-from middlewares.safety_mw_ing import sanitize_pii
+from middlewares.safety_mw import sanitize_pii
+from services.weather_case import (
+    build_weather_route_from_user_prompt,
+    format_weather_recommendation,
+)
 
 # 페이지 기본 설정
 st.set_page_config(
@@ -38,7 +42,7 @@ init_app()
 settings = Settings()
 settings.validate()
 
-openai_client = OpenAI(api_key=settings.openai_api_key)
+openai_client = get_openai_clients(settings)
 
 
 def fake_next(request: LLMRequest) -> LLMResponse:
@@ -143,6 +147,14 @@ if st.session_state.quick_buttons:
                 handle_button_click(btn_label)
                 st.rerun()
 
+def is_weather_query(text: str) -> bool:
+    keywords = [
+        "날씨", "기온", "온도", "비", "눈", "우산",
+        "여행 가는데", "여행가는데", "여행 예정",
+        "실내", "야외"
+    ]
+    return any(k in text for k in keywords)
+
 
 # =========================
 # 유저 입력 처리
@@ -180,6 +192,22 @@ def process_user_input(user_text: str) -> None:
     st.session_state.messages.append({"role": "user", "content": safe_user_text})
     st.session_state.quick_buttons = []
 
+    # =========================
+    # 날씨 정보
+    # =========================
+
+    if is_weather_query(safe_user_text):
+        with st.spinner("날씨를 확인하고 있어요 🌤️"):
+            weather_result = build_weather_route_from_user_prompt(safe_user_text)
+            reply_text = format_weather_recommendation(weather_result["result"])
+
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": reply_text
+        })
+        return
+    # =========================
+
     # 시스템 프롬프트 + 전체 대화 히스토리 전달
     api_payload = [{"role": "system", "content": SYSTEM_PROMPT}]
     for m in st.session_state.messages:
@@ -197,6 +225,8 @@ if st.session_state.pending_input is not None:
     process_user_input(st.session_state.pending_input)
     st.session_state.pending_input = None
     st.rerun()
+
+
 
 
 # 텍스트 입력창 + 전송 버튼
@@ -217,3 +247,31 @@ with col_send:
 if is_send_clicked and user_input.strip():
     process_user_input(user_input.strip())
     st.rerun()
+
+def check_moderation(client, text: str) -> dict:
+    print("=== moderation 호출됨 ===")
+    print("client type:", type(client))
+    print("input:", text)
+
+    response = client.moderations.create(
+        model="omni-moderation-latest",
+        input=text
+    )
+    result = response.results[0]
+
+    print("flagged:", result.flagged)
+    print("scores:", dict(result.category_scores))
+
+    return {
+        "flagged": result.flagged,
+        "categories": dict(result.categories),
+        "scores": dict(result.category_scores),
+    }
+
+def is_weather_query(text: str) -> bool:
+    keywords = [
+        "날씨", "기온", "온도", "비", "눈", "우산",
+        "여행 가는데", "여행가는데", "여행 예정",
+        "실내", "야외"
+    ]
+    return any(k in text for k in keywords)
