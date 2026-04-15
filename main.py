@@ -10,7 +10,7 @@ load_dotenv()
 # "invoke" : 최종 답변만 한 번에 출력
 # "debug"  : 중간 tool trace까지 전부 출력
 # "stream" : 스트리밍 형태로 flush 출력
-RUN_MODE = "stream"         # <- 여기 있는 RUN_MODE를 바꾸면 출력 형식이 바뀜.
+RUN_MODE = "debug"         # <- 여기 있는 RUN_MODE를 바꾸면 출력 형식이 바뀜.
 
 
 def run_invoke(agent, user_input: str):
@@ -81,10 +81,11 @@ def main():
     agent = build_trip_agent()
 
     user_input = """
-부산에서 1일 여행 일정 짜줘.
-카페랑 맛집이 포함되면 좋고,
-오전 10시부터 시작하는 시간대별 일정으로 만들어줘.
-"""
+    내일 부산에서 1일 여행 일정 짜줘.
+    카페랑 맛집이 포함되면 좋고,
+    오전 10시부터 시작하는 시간대별 일정으로 만들어줘.
+    비 오면 실내 위주면 좋겠어.
+    """
 
     if RUN_MODE == "invoke":
         run_invoke(agent, user_input)

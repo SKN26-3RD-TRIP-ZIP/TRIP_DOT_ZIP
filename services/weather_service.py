@@ -8,9 +8,45 @@ from llm.prompts import SYSTEM_PROMPT
 from datetime import date, datetime
 
 
-weather_api_key = Settings.weather_api_key
-openai_api_key = Settings.openai_api_key
+settings = Settings()
+weather_api_key = settings.weather_api_key
+openai_api_key = settings.openai_api_key
 client = openai.OpenAI(api_key=openai_api_key)
+
+# -----------------------------
+# 도시명 변환용 맵
+# 사용자에게는 한국어로 보여주고,
+# API 호출할 때만 영어 표준명으로 변환
+# -----------------------------
+CITY_NAME_MAP = {
+    "서울": "Seoul",
+    "부산": "Busan",
+    "전주": "Jeonju",
+    "제주": "Jeju",
+    "대구": "Daegu",
+    "대전": "Daejeon",
+    "광주": "Gwangju",
+    "인천": "Incheon",
+    "울산": "Ulsan",
+    "수원": "Suwon",
+    "경주": "Gyeongju",
+    "여수": "Yeosu",
+    "속초": "Sokcho",
+    "강릉": "Gangneung",
+    "춘천": "Chuncheon",
+    "포항": "Pohang",
+    "목포": "Mokpo",
+    "도쿄": "Tokyo",
+    "오사카": "Osaka",
+    "후쿠오카": "Fukuoka",
+    "교토": "Kyoto",
+    "삿포로": "Sapporo",
+}
+
+def normalize_city_name_for_weather(city_name: str | None) -> str:
+    if not city_name:
+        return "Seoul"
+    return CITY_NAME_MAP.get(city_name, city_name)
 
 
 def get_current_weather(city_name: str = "Seoul", units: str = "metric") -> str:
