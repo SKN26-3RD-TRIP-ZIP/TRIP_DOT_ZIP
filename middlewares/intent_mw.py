@@ -100,3 +100,6 @@ class IntentRoutingMiddleware(AgentMiddleware[TravelAgentState]):
         return {
             "tools": selected_tools
         }
+
+    def before_agent(self, state, runtime):
+        print("🔥🔥 middleware 들어옴 🔥🔥")

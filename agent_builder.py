@@ -12,6 +12,37 @@ from llm.tools import (
     modify_schedule_tool,
     recommend_travel_tool,
 )
+from config import Settings
+
+def build_trip_agent():
+    settings = Settings()
+    settings.validate()
+
+    model = ChatOpenAI(
+        model=settings.openai_model,
+        temperature=0,
+        api_key=settings.openai_api_key
+    )
+
+    intent_middleware = IntentRoutingMiddleware(
+        weather_tools=weather_tools,
+        place_tools=place_tools,
+        schedule_tools=schedule_tools,
+        modify_tools=modify_tools,
+        travel_tools=travel_tools,
+        chat_tools=chat_tools,
+        enable_tool_filtering=True,
+        debug=True,
+    )
+
+    agent = create_agent(
+        model=model,
+        tools=all_tools,
+        middleware=[intent_middleware],
+        state_schema=TravelAgentState,
+    )
+
+    return agent
 
 # 모델
 model = ChatOpenAI(
