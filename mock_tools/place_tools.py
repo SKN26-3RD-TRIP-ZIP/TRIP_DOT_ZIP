@@ -1,3 +1,11 @@
+"""
+LLM 동작 검증을 위한 Place mock tool.
+
+실제 외부 API나 서비스가 연결되기 전에도
+에이전트의 실행 흐름과 응답 형식을 확인할 수 있도록
+가상의 결과를 반환하는 tool이다..
+"""
+
 from langchain.tools import tool
 from llm.schemas import success_response
 

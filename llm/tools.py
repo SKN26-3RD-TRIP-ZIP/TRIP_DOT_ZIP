@@ -1,3 +1,12 @@
+"""
+에이전트가 사용할 tool들을 등록하고 관리하는 파일.
+
+LLM이 필요한 기능을 호출할 수 있도록
+각 tool을 한곳에서 정의하거나 불러와 연결한다.
+날씨 조회, 장소 추천, 일정 생성 등 외부 기능을
+에이전트 실행 흐름에 통합하는 역할을 한다.
+"""
+
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from langchain.tools import tool

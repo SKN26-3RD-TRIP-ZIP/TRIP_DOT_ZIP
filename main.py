@@ -1,3 +1,11 @@
+"""
+애플리케이션 실행의 진입점이 되는 파일.
+
+사용자 입력을 받아 agent graph를 실행하고,
+LLM이 생성한 최종 응답을 반환하는 역할을 한다.
+전체 실행 흐름을 시작하고 필요한 구성 요소를 연결한다.
+"""
+
 import os
 import traceback
 from dotenv import load_dotenv
