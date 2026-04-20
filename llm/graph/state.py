@@ -8,6 +8,13 @@ IntentType = Literal[
     "schedule_generation", "weather_query", "modify_request"
 ]
 
+# validate_node의 결과값을 담는 객체
+class QualityCheck(TypedDict):  
+    # TypedDict로 정의했으나 BaseModel로 변경예정.(26.04.20)
+    """ 일정의 품질 검사 결과를 담는 구조체 """
+    is_passed: bool     # 품질 검사 통과 여부
+    issues: List[str]   # 발견된 문제(LLM에게 전달할 문제점, TODO: 리스트처리는 고민해볼 것.)
+    target_node: str    # 돌아갈 노드(이건 flow상 단수처리) 이 분기처리는 어디서..?
 
 class TravelAgentState(TypedDict, total=False):     # 처음부터 모든 값이 채워져 있을 필요 없으므로, total=False를 줬음.
     # 1. 기본 대화 및 의도
@@ -42,4 +49,13 @@ class TravelAgentState(TypedDict, total=False):     # 처음부터 모든 값이
     # 4. 지도 및 응답 제어
     # map_tool.py에서 사용하는 마커 및 센터 정보
     map_metadata: Dict
+
     final_response: str         # 사용자에게 보여줄 최종 텍스트 응답
+
+    # 5. 상태값
+    state_type_cd: str = "01"   # 여행 계획의 단계코드
+    # 01: 초기 | 02: 장소 검색 완료 | 03: 일정 생성 완료 | 04: 품질 검사 완료 | 05: 최종 답변 생성 완료
+    # TODO: 단계코드 순서 다시 확인.
+    
+    # 6. 검증여부
+    quality_check: QualityCheck
