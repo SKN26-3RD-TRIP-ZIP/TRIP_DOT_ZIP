@@ -14,11 +14,17 @@ from utils.custom_exception import PlaceNotFoundError
 from config import Settings
 import json
 
+# 벡터 DB 적재 import
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import Chroma
+from langchain_core.documents import Document
+
 # API KEY
 places_api_key = Settings.places_api_key
+openai_api_key = Settings.openai_api_key
 
 # Test를 위한 값. => True 시 파일로 다운로드 가능.
-SAVE_FILE_TEST_MODE = False
+SAVE_FILE_TEST_MODE = True
 
 # 카테고리 단순화를 위한 mapping값. => TODO: constants.py
 PLACE_CATEGORY_MAP = {
@@ -283,11 +289,95 @@ def search_place_tool(destination: str, styles: List[str], constraints: List[str
             "error": str(e),
             "meta": {"tool_name": "place_search"}
         }
+    
+def preprocess_place_data(raw_data: dict) -> List[dict]:
+    """ Google Places API로부터 받은 원본 장소 데이터를 LLM이 활용하기 쉬운 형태로 가공함.
+
+        원본 데이터에서 장소 ID, 이름, 위치, 카테고리, 평점, 리뷰 요약 등을 추출하여 
+        카테고리를 사전에 정의된 단순화된 카테고리로 매핑함.
+
+        Args:
+            raw_data (dict): Google Places API로부터 받은 원본 장소 데이터
+
+        Returns:
+            List[dict]: 가공된 장소 정보 리스트. 각 장소는 ID, 이름, 위도/경도, 단순화된 카테고리, 평점, 실내외 여부 등을 포함함.
+    """
+    mapped_places = []
+    for p in raw_data.get("places", []):
+        primary_type = p.get("primaryType", "")
+        mapped_places.append({
+            "place_id": p.get("id"),
+            "name": p.get("displayName", {}).get("text"),
+            "lat": p.get("location", {}).get("latitude"),
+            "lng": p.get("location", {}).get("longitude"),
+            "category": next((k for k, cats in PLACE_CATEGORY_MAP.items() if primary_type in cats), "default"),
+            "summary": p.get("reviewSummary", {}).get("text", "정보 없음"),
+            "rating": p.get("rating", 0),
+            "indoor_outdoor": "indoor" if primary_type in INDOOR_TYPES else "outdoor",
+        })
+    return mapped_places
+
+
+def parse_place_data(raw_data: dict) -> List[dict]:
+    """
+        Google Place API 응답 JSON을 활용할 수 있는 리스트로 변환
+        특히 한 장소에 여러 리뷰 -> 리뷰 별로 청크 1개 생성
+        
+    """
+def test_db_storage():
+    # 테스트용 가짜 데이터 (Mock Data)
+    # 실제 place_search_tool이 반환하는 형식과 동일하게 구성
+    mock_places = [
+        {
+            "place_id": "test_001",
+            "name": "해운대 블루라인파크",
+            "category": "park",
+            "indoor_outdoor": "outdoor",
+            "summary": "해안 열차를 탈 수 있는 산책로",
+            "rating": 4.5,
+            "lat": 35.16, "lng": 129.16,
+            "recommended_reason": "부산에서 가장 유명한 산책 코스입니다."
+        }
+    ]
+
+    # 3. 데이터 전처리 (Document 객체화)
+    docs = []
+    for p in mock_places:
+        # content와 metadata 분리
+        content = f"{p['name']} {p['category']} {p['summary']} {p['recommended_reason']}"
+        metadata = {"place_id": p['place_id'], "name": p['name']}
+        docs.append(Document(page_content=content, metadata=metadata))
+
+    # 4. 벡터 DB 생성 및 저장
+    persist_dir = "./db/chroma_db"
+    embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key, model="text-embedding-3-small")
+    
+    print("--- DB 생성 및 저장 중... ---")
+    vector_db = Chroma.from_documents(
+        documents=docs,
+        embedding=embeddings,
+        persist_directory=persist_dir,
+        collection_name="test_collection"
+    )
+    print(f"성공: '{persist_dir}' 폴더에 데이터가 저장되었습니다.")
+
+    # 잘 저장됐는지 즉시 검색 테스트
+    print("\n--- 검색 테스트 진행 중... ---")
+    query = "바닷가 열차 타는 곳 어디야?"
+    results = vector_db.similarity_search(query, k=1)
+    
+    if len(results) > 0:
+        print(f"검색 성공! 찾은 장소: {results[0].metadata['name']}")
+    else:
+        print("검색 결과가 없습니다.")
 
     
 # 호출 테스트
 if __name__ == "__main__":
 
+    # # 1. 벡터 적재 테스트
+    # test_db_storage()
+    
     # 함수호출에 필요한 값
     test_destination = "부산"
     test_styles = ["맛집", "동물원"]
