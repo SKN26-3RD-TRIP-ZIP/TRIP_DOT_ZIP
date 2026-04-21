@@ -16,7 +16,7 @@ llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
 # 검증 결과 구조체
 # state.py 내용을 pydantic 모델로 변경하면서 그거 가지고 올 예정.
 class QualityCheckResult(BaseModel):
-    is_passed: bool = Field(default="False", description="통과 여부")
+    is_passed: bool = Field(default=False, description="통과 여부")
     issues: List[str] = Field(description="실패 사유 리스트")
     target_node: str = Field(description="분기처리를 위한 다음 노드")
 

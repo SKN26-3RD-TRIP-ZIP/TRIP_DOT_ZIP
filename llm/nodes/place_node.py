@@ -9,6 +9,7 @@ from llm.graph.state import TravelAgentState
 from typing import List
 from config import Settings
 import requests
+from llm.graph.contracts import StateKeys
 
 # API KEY
 PLACES_API_KEY = Settings.places_api_key
@@ -95,7 +96,10 @@ def place_node(state: TravelAgentState):
 
     # 만약 상태값 체크가 필요하면, 상태값 체크
     # 도착지
-    destination = state.get("destination")
+    destination = state.get(StateKeys.DESTINATION)
+
+    # 제약조건 
+    constraints = state.get(StateKeys.CONSTRAINTS)
 
     temp_places = []
 
