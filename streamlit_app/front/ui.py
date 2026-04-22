@@ -23,8 +23,11 @@ import streamlit as st
 
 from streamlit_app.back.session_state import (
     format_list_value,
+    load_profile_from_db,
+    list_saved_profiles,
     reset_session_state,
     reset_user_profile,
+    save_profile_to_db,
 )
 from streamlit_app.back.chat_logic import get_mock_preview, process_user_input
 
@@ -96,6 +99,29 @@ def render_profile_setup() -> None:
         unsafe_allow_html=True,
     )
 
+    # 최신 Streamlit 구조에서는 프로필을 세션뿐 아니라 MySQL에도 저장한다.
+    st.info("DB 저장 버전입니다. 프로필은 MySQL에 저장됩니다.")
+
+    saved_profiles = list_saved_profiles()
+    if saved_profiles:
+        # 저장된 프로필 요약 목록을 selectbox에 맞는 라벨 형식으로 변환한다.
+        profile_options = {
+            f"{row['nickname']} ({row['profile_id']}) - {row['updated_at']}": row["profile_id"]
+            for row in saved_profiles
+        }
+        selected_profile = st.selectbox(
+            "저장된 프로필 불러오기",
+            ["새 프로필 만들기", *profile_options.keys()],
+        )
+        if selected_profile != "새 프로필 만들기" and st.button("선택한 프로필로 시작하기"):
+            # 저장된 프로필을 현재 세션 상태에 다시 올려 채팅을 바로 시작한다.
+            loaded_profile = load_profile_from_db(profile_options[selected_profile])
+            if loaded_profile:
+                st.session_state.user_profile = loaded_profile
+                st.session_state.user_profile_completed = True
+                st.session_state.initialized = False
+                st.rerun()
+
     with st.form("persona_profile_form"):
         nickname = st.text_input("닉네임 또는 이름", placeholder="예: 홍길동")
         col1, col2 = st.columns(2)
@@ -139,7 +165,10 @@ def render_profile_setup() -> None:
         submitted = st.form_submit_button("채팅 시작하기", use_container_width=True)
 
     if submitted:
+        # nickname을 profile_id로도 사용해 별도 식별자 입력 없이 upsert 가능하게 한다.
+        resolved_profile_id = nickname.strip() or "default_user"
         st.session_state.user_profile = {
+            "profile_id": resolved_profile_id,
             "nickname": nickname.strip() or "사용자",
             "age_group": age_group,
             "gender": gender,
@@ -149,6 +178,8 @@ def render_profile_setup() -> None:
             "pace": pace,
             "indoor_outdoor": indoor_outdoor,
         }
+        # 세션 상태와 MySQL을 동시에 갱신해 다음 실행에서도 같은 프로필을 불러올 수 있게 한다.
+        save_profile_to_db(st.session_state.user_profile)
         st.session_state.user_profile_completed = True
         st.session_state.initialized = False
         st.rerun()
