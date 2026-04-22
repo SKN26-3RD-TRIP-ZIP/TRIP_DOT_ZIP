@@ -70,7 +70,7 @@ workflow.add_conditional_edges(
     {
         "ask_user_node": "ask_user_node",       # 사용자에게 정보를 더 받아야 하면 여기로
         "weather_node": "weather_node",         # 날씨 정보가 필요하면 여기로
-        "place_node": "place_node",             # 장소 검색이 필요하면 여기로 ★ 수정 필요
+        "place_node": "place_node",             # 장소 검색이 필요하면 여기로
         "scheduler_node": "scheduler_node",     # 이미 장소가 충분하면 바로 여기로
         "modify_node": "modify_node",           # 수정할 내용이 있다면 여기로
         "response_node": "response_node"        # 일반 대화는 바로 답변으로!
