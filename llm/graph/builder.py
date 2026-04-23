@@ -1,3 +1,5 @@
+from langchain_openai import ChatOpenAI
+
 from langgraph.graph import StateGraph, END
 
 from llm.graph.state import TravelAgentState
@@ -18,13 +20,20 @@ from llm.nodes.schedule_nodes import scheduler_node
 from llm.nodes.validate_node import validate_travel_plan_node
 from llm.nodes.safety_nodes import safe_input_node
 from llm.nodes.summary_nodes import summary_node
-
+from llm.nodes.intent_nodes import route_intent_node, intent_node
 
 # Initialize graph
 workflow = StateGraph(TravelAgentState)
 
+# 공용 LLM 하나만 생성
+shared_llm = ChatOpenAI(model="gpt-4o-mini", temperature=1.0)
+
+# 노드 등록 시 인스턴스화해서 전달
+intent_node_instance = intent_node(shared_llm)
+
 # Register nodes
-workflow.add_node("intent_router", route_intent_node)
+# workflow.add_node("intent_router", route_intent_node)     # llm 붙이기 전 0424 주석처리
+workflow.add_node("intent_router", intent_node_instance)    # llm 붙인 후 0424 추가
 workflow.add_node("extract_trip_requirements_node", extract_trip_requirements_node)
 workflow.add_node("check_missing_info_node", check_missing_info_node)
 workflow.add_node("ask_user_node", ask_user_for_missing_info_node)
