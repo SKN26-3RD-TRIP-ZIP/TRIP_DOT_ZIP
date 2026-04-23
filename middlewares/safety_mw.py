@@ -130,7 +130,13 @@ def should_block(client: OpenAI, text: str) -> bool:
 
     print("🔍 moderation flagged:", mod["flagged"])
     print("🔍 moderation categories:", mod["categories"])
-    print("🔍 moderation scores:", mod["scores"])
+    filtered_scores = {
+        k: v for k, v in mod["scores"].items()
+        if v >= GLOBAL_BLOCK_THRESHOLD
+    }
+
+    if filtered_scores:
+        print("🚫 threshold 초과:", filtered_scores)
 
 
     return bad_word_hit or should_block_by_score(mod["scores"])
