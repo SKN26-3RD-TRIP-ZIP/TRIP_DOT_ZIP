@@ -73,6 +73,24 @@ def extract_message_text(content) -> str:
     return str(content)
 
 
+def get_mock_preview() -> dict:
+    """
+    UI 하위 호환용 프리뷰 응답 형식을 반환한다.
+
+    최신 Streamlit UI는 사이드바 프리뷰 섹션에서 이 함수를 import한다.
+    현재 실제 노드 기반 프리뷰 집계는 아직 구현되지 않았으므로,
+    렌더링이 깨지지 않도록 빈 성공 응답 형태만 반환한다.
+
+    Returns:
+        dict: weather, places, schedule 키를 가진 기본 프리뷰 구조
+    """
+    return {
+        "weather": {"status": "success", "data": {}},
+        "places": {"status": "success", "data": {"places": []}},
+        "schedule": {"status": "success", "data": {"itinerary": []}},
+    }
+
+
 # def get_mock_preview() -> dict:
 #     """
 #     사이드바 미리보기용 mock 결과를 생성한다.
@@ -297,33 +315,3 @@ def process_user_input(user_text: str) -> None:
         {"role": "assistant", "content": reply_text, "time": now_label()}
     )
     st.session_state.quick_buttons = reply_buttons
-
-
-if __name__ == "__main__":
-    # Streamlit 없이 테스트용 실행
-
-    # fake session_state 만들기
-    class DummySession:
-        def __init__(self):
-            self.messages = []
-            self.quick_buttons = []
-            self.trip_info = {
-                "destination": "미정",
-                "date": "미정",
-                "style": "미정"
-            }
-
-    # st.session_state 흉내내기
-    import types
-    st.session_state = DummySession()
-
-    # 테스트 입력
-    test_input = "다음주 목요일에 부산여행 갈거야"
-
-    # 실행
-    process_user_input(test_input)
-
-    # 결과 출력
-    print("\n=== 최종 결과 ===")
-    for msg in st.session_state.messages:
-        print(msg)

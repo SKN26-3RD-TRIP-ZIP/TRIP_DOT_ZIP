@@ -34,10 +34,12 @@ from streamlit_app.back.chat_logic import process_user_input
 # =========================
 # 경로 설정
 # =========================
+BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-GUIDE_MOUSE_IMAGE = ROOT_DIR / "assets" / "tripdotzip_guide_mouse.png"
-MOUSE_ICON_IMAGE = ROOT_DIR / "assets" / "tripdotzip_mouse_icon.png"
+GUIDE_MOUSE_IMAGE = PROJECT_ROOT / "assets" / "tripdotzip_guide_mouse.png"
+MOUSE_ICON_IMAGE = PROJECT_ROOT / "assets" / "tripdotzip_mouse_icon.png"
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -52,9 +54,9 @@ def load_css() -> None:
     Returns:
         None
     """
-    css_path = ROOT_DIR / "front" / "tripdotzip.css"
+    css_path = BASE_DIR / "front" / "tripdotzip.css"
     if not css_path.exists():
-        css_path = ROOT_DIR / "tripdotzip.css"
+        css_path = PROJECT_ROOT / "tripdotzip.css"
 
     st.markdown(
         f"<style>{css_path.read_text(encoding='utf-8')}</style>",
