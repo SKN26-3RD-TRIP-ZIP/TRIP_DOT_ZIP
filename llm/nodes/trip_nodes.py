@@ -494,6 +494,25 @@ def ask_user_for_missing_info_node(state: TravelAgentState) -> dict:
 
 
 def modify_trip_requirements_node(state: TravelAgentState) -> dict:
+    """
+        사용자의 최신 메시지에서 여행 요구사항(목적지, 스타일, 제약 조건 등)을 추출하여 상태를 수정합니다.
+
+        LLM을 사용하여 사용자의 의도를 분석하며, 목적지가 변경된 경우 기존의 모든 일정 데이터를 초기화합니다.
+        스타일이나 제약 조건의 경우, 기존 리스트에 추가하거나(Append) 새로운 값으로 교체(Replace)할 수 있습니다.
+
+        Args:
+            state (TravelAgentState): 그래프의 현재 상태 객체.
+                - MESSAGES: 사용자의 대화 기록
+                - DESTINATION: 현재 설정된 목적지
+                - STYLES: 현재 설정된 여행 스타일 리스트
+
+        Returns:
+            dict: 업데이트할 상태 필드와 값을 담은 딕셔너리.
+                - DESTINATION: 신규 목적지 (변경 시)
+                - MAPPED_PLACES, SELECTED_PLACES, ITINERARY: 목적지 변경 시 빈 리스트([])로 초기화
+                - STYLES, CONSTRAINTS: 추출된 스타일 및 제약 조건
+                - TRAVEL_DATE, START_TIME: 일정 관련 시간 정보
+        """
     messages = state.get(StateKeys.MESSAGES, [])
     if not messages:
         return {}
@@ -501,6 +520,7 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
     last_msg = messages[-1]
     user_text = last_msg.content if hasattr(last_msg, "content") else last_msg.get("content", "")
 
+    # 현재 상태값들을 LLM에게 참고용으로 전달하기 위해 정리
     current_state = {
         "destination": state.get(StateKeys.DESTINATION),
         "styles": state.get(StateKeys.STYLES, []),
@@ -511,6 +531,7 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
         "start_time": state.get(StateKeys.START_TIME),
     }
 
+    # 1. LLM을 사용하여 수정된 의도 추출 시도
     try:
         llm_result = _call_trip_extractor_llm(messages, current_state, mode="modify")
     except Exception as exc:
@@ -520,6 +541,7 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
     updates: dict[str, Any] = {}
     current_dest = state.get(StateKeys.DESTINATION)
 
+    # 2. 목적지 변경 처리: LLM 결과가 없으면 기존 방식(추출 함수) 사용
     new_destination = llm_result.get("destination") or _extract_destination(user_text)
     if new_destination is not None and new_destination != current_dest:
         updates[StateKeys.DESTINATION] = new_destination
@@ -529,6 +551,7 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
         updates[StateKeys.ROUTE] = llm_result.get("route") or "travel"
         print(f"[DEBUG] Destination CHANGED to {new_destination}. Resetting ALL data.")
 
+    # 3. 스타일 업데이트: 교체할지, 기존 리스트에 추가(중복제거)할지 결정
     styles = _normalize_style_values(llm_result.get("styles") or [])
     if styles:
         if llm_result.get("replace_styles"):
@@ -537,11 +560,13 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
             current_styles = state.get(StateKeys.STYLES, [])
             updates[StateKeys.STYLES] = list(dict.fromkeys(current_styles + styles))
 
+    # 4. 제약 조건(예: '휠체어 가능', '반려동물 동반') 업데이트
     constraints = _normalize_constraint_values(llm_result.get("constraints") or [])
     if constraints:
         current_constraints = state.get(StateKeys.CONSTRAINTS, [])
         updates[StateKeys.CONSTRAINTS] = list(dict.fromkeys(current_constraints + constraints))
 
+    # 5. 날짜 정보 업데이트: 배타적 업데이트 (하나가 정해지면 나머지는 초기화)
     if llm_result.get("travel_date"):
         updates[StateKeys.TRAVEL_DATE] = llm_result["travel_date"]
         updates[StateKeys.RAW_DATE_TEXT] = None
@@ -555,6 +580,7 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
         updates[StateKeys.TRAVEL_DATE] = None
         updates[StateKeys.RELATIVE_DAYS] = None
     else:
+        # LLM 결과가 없을 경우 기존 방식의 날짜 추출 함수(current_year 기준)로 보완
         fallback_date = _extract_date_fields_current_year(user_text)
         if fallback_date.get("travel_date"):
             updates[StateKeys.TRAVEL_DATE] = fallback_date["travel_date"]
@@ -569,6 +595,7 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
             updates[StateKeys.TRAVEL_DATE] = None
             updates[StateKeys.RELATIVE_DAYS] = None
 
+    # 6. 시작 시간 처리
     if llm_result.get("start_time"):
         updates[StateKeys.START_TIME] = llm_result["start_time"]
     else:
@@ -581,11 +608,30 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
 
 
 def select_places_node(state: TravelAgentState) -> dict:
+    """
+        검색된 장소들 중 실제 일정에 포함할 장소를 선택하고 데이터 정합성을 검증합니다.
+
+        기존에 선택된 장소들이 현재 목적지와 일치하는지 확인하며, 불일치할 경우 데이터를 초기화합니다.
+        검색된 장소 리스트(mapped_places)에서 현재 목적지에 유효한 장소들을 필터링하여 상위 3개를 선택합니다.
+
+        Args:
+            state (TravelAgentState): 그래프의 현재 상태 객체.
+                - DESTINATION: 현재 목적지
+                - MAPPED_PLACES: 검색 노드에서 반환된 전체 장소 리스트
+                - SELECTED_PLACES: 이전에 선택되었던 장소 리스트
+                - ITINERARY: 이전에 생성되었던 일정 리스트
+
+        Returns:
+            dict: 업데이트할 상태 필드와 값을 담은 딕셔너리.
+                - SELECTED_PLACES: 최종 선택된 장소 리스트 (최대 3개)
+                - ITINERARY: 새로운 장소 선택 시 재계산을 위해 빈 리스트([])로 초기화
+        """
     current_dest = state.get(StateKeys.DESTINATION)
     mapped_places = state.get(StateKeys.MAPPED_PLACES, [])
     existing_selected = state.get(StateKeys.SELECTED_PLACES, [])
     existing_itinerary = state.get(StateKeys.ITINERARY, [])
 
+    # 현재 선택된 장소들이 현재 목적지와 부합하는지 확인하는 헬퍼 함수
     def is_valid_selected_places() -> bool:
         if not existing_selected or not current_dest:
             return False
@@ -597,16 +643,20 @@ def select_places_node(state: TravelAgentState) -> dict:
                 return False
         return True
 
+    # 이미 선택된 장소와 일정이 있는 경우
     if existing_selected and existing_itinerary:
         if is_valid_selected_places():
             print("[DEBUG] Existing selection valid for current destination. Keeping them.")
-            return {}
+            return {}   # 유효하면 그대로 유지
+
+        # 도시가 바뀌었다면 기존 장소와 일정 초기화
         print("[DEBUG] Destination changed. Resetting selected_places and itinerary.")
         return {
             StateKeys.SELECTED_PLACES: [],
             StateKeys.ITINERARY: [],
         }
 
+    # 검색된 전체 장소(mapped_places) 중 현재 도시와 관련된 것만 필터링
     if mapped_places and current_dest:
         valid_mapped = [
             place for place in mapped_places
@@ -622,6 +672,7 @@ def select_places_node(state: TravelAgentState) -> dict:
     else:
         valid_mapped = mapped_places
 
+    # 최종 후보 3개 선택 및 일정 리셋 (scheduler가 새 일정을 짜도록 유도)
     selected = valid_mapped[:3]
 
     print(f"[DEBUG] New places selected for {current_dest}. Resetting itinerary for scheduler.")
