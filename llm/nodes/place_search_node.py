@@ -13,8 +13,18 @@ def place_search_node(state: TravelAgentState) -> dict:
     styles = ", ".join(state.get(StateKeys.STYLES, []))
     constraints = ", ".join(state.get(StateKeys.CONSTRAINTS, []))
 
-    # 예: "부산 맛집, 카페 실내 위주"
-    search_query = f"{destination} {styles} {constraints}".strip()
+    # 1. 스타일 키워드 우선순위 재정렬
+    # 일반적인 키워드 리스트 (나머지는 구체적 키워드로 간주하여 앞으로 배치)
+    generic_keywords = {"맛집", "식당", "카페", "디저트", "관광", "명소"}
+
+    specific_styles = [s for s in styles if s not in generic_keywords]
+    generic_styles = [s for s in styles if s in generic_keywords]
+
+    # 구체적 키워드를 앞쪽에 배치하여 쿼리 가중치 유도
+    reordered_styles = ", ".join(specific_styles + generic_styles)
+
+    # 2. 검색 쿼리 조합 (예: "부산 서핑, 액티비티, 맛집 실내 위주")
+    search_query = f"{destination} {reordered_styles} {constraints}".strip()
 
     # 쿼리가 비어 있는 경우
     if not search_query:
