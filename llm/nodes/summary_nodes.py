@@ -27,7 +27,7 @@ def _normalize_messages(messages):
     return normalized
 
 
-def _count_message_tokens(messages, model_name: str = "gpt-4.1-mini") -> int:
+def _count_message_tokens(messages, model_name: str = "gpt-4o-mini") -> int:
     """
     messages 전체의 대략적인 토큰 수를 계산한다.
     """
@@ -79,12 +79,12 @@ def _generate_summary(messages, max_chars: int = 700) -> str:
 """.strip()
 
     response = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "너는 대화 기록을 압축 요약하는 시스템이다."},
             {"role": "user", "content": prompt},
         ],
-        temperature=0.2,
+        temperature=0.0,
     )
     return response.choices[0].message.content.strip()
 
@@ -100,7 +100,7 @@ def summary_node(state: TravelAgentState) -> dict:
     trigger_token_count = 1000
     keep_last_n = 3
 
-    token_count = _count_message_tokens(messages, model_name="gpt-4.1-mini")
+    token_count = _count_message_tokens(messages, model_name="gpt-4o-mini")
 
     print("[DEBUG] token_count =", token_count)
     print("[DEBUG] len(messages) =", len(messages))
