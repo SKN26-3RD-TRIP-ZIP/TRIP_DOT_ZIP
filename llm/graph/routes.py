@@ -47,3 +47,9 @@ def route_after_safety_check(state: TravelAgentState):
     if state.get(StateKeys.BLOCKED, False):
         return "blocked_response_node"
     return "summary_node"
+
+def route_after_intent_node(state: TravelAgentState):
+    print("[DEBUG] [start] route_after_intent_node")
+    print(state)
+    print("[DEBUG] [end]")
+    return state["intent"]

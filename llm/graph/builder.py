@@ -3,7 +3,11 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 
 from llm.graph.state import TravelAgentState
-from llm.graph.routes import route_after_missing_check, route_after_safety_check
+from llm.graph.routes import (
+    route_after_missing_check, 
+    route_after_safety_check,
+    route_after_intent_node
+)
 from llm.nodes.intent_nodes import route_intent_node
 from llm.nodes.trip_nodes import (
     extract_trip_requirements_node,
@@ -26,13 +30,14 @@ from llm.nodes.intent_nodes import route_intent_node, intent_node
 workflow = StateGraph(TravelAgentState)
 
 # 공용 LLM 하나만 생성
-shared_llm = ChatOpenAI(model="gpt-4o-mini", temperature=1.0)
+shared_llm = ChatOpenAI(model="gpt-4.1", temperature=1.0)
 
 # 노드 등록 시 인스턴스화해서 전달
 intent_node_instance = intent_node(shared_llm)
 
 # 그래프 노드 등록
-workflow.add_node("intent_router", route_intent_node)
+# workflow.add_node("intent_router", route_intent_node)
+workflow.add_node("intent_router", intent_node_instance)
 workflow.add_node("extract_trip_requirements_node", extract_trip_requirements_node)
 workflow.add_node("check_missing_info_node", check_missing_info_node)
 workflow.add_node("ask_user_node", ask_user_for_missing_info_node)
@@ -64,22 +69,34 @@ workflow.add_edge("blocked_response_node", END)
 workflow.add_edge("summary_node", "intent_router")
 
 # 사용자 여행 조건 추출 단계 연결
-workflow.add_edge("intent_router", "extract_trip_requirements_node")
-workflow.add_edge("extract_trip_requirements_node", "check_missing_info_node")
-
-# 필수 정보 누락 여부에 따라 다음 경로 분기
-workflow.add_conditional_edges(
-    "check_missing_info_node",
-    route_after_missing_check,
+workflow.add_conditional_edges( 
+    "intent_router",
+    route_after_intent_node,
     {
         "ask_user_node": "ask_user_node",
         "weather_node": "weather_node",
         "place_node": "place_node",
         "scheduler_node": "scheduler_node",
         "modify_node": "modify_node",
-        "response_node": "response_node",
-    },
+        "response_node": "response_node", 
+    }
 )
+# workflow.add_edge("intent_router", "extract_trip_requirements_node")
+# workflow.add_edge("extract_trip_requirements_node", "check_missing_info_node")
+
+# # 필수 정보 누락 여부에 따라 다음 경로 분기
+# workflow.add_conditional_edges(
+#     "check_missing_info_node",
+#     route_after_missing_check,
+#     {
+#         "ask_user_node": "ask_user_node",
+#         "weather_node": "weather_node",
+#         "place_node": "place_node",
+#         "scheduler_node": "scheduler_node",
+#         "modify_node": "modify_node",
+#         "response_node": "response_node",
+#     },
+# )
 
 workflow.add_edge("modify_node", "place_node")
 
