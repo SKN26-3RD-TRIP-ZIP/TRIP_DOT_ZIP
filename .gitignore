@@ -214,3 +214,6 @@ __marimo__/
 
 # data 폴더
 data/
+
+# DB 폴더
+db/
