@@ -23,6 +23,7 @@ from streamlit_app.back.database import (
     list_saved_profiles,
     save_profile_to_db,
 )
+from streamlit_app.back.session_state import now_label
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -291,9 +292,19 @@ def render_chat_area() -> None:
 
     user_input = st.chat_input("여행에 대해 무엇이든 물어보세요...")
     if user_input and user_input.strip():
+    
+        # 로딩바가 뜨기 전에 사용자의 메시지가 먼저 보일 수 있도록 수정(260425 jyhong)
+        new_msg = {"role": "user", "content": user_input.strip(), "time": now_label()}
+        # 사용자 메시지 렌더링
+        render_message(new_msg)
+        
         loading_slot = st.empty()
+        
+        # 땃쥐 로딩바
         with loading_slot.container():
             render_loading_message()
+
         process_user_input(user_input.strip())
+        
         loading_slot.empty()
         st.rerun()
