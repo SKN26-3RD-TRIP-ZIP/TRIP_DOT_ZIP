@@ -69,34 +69,34 @@ workflow.add_edge("blocked_response_node", END)
 workflow.add_edge("summary_node", "intent_router")
 
 # 사용자 여행 조건 추출 단계 연결
-workflow.add_conditional_edges( 
-    "intent_router",
-    route_after_intent_node,
-    {
-        "ask_user_node": "ask_user_node",
-        "weather_node": "weather_node",
-        "place_node": "place_node",
-        "scheduler_node": "scheduler_node",
-        "modify_node": "modify_node",
-        "response_node": "response_node", 
-    }
-)
-# workflow.add_edge("intent_router", "extract_trip_requirements_node")
-# workflow.add_edge("extract_trip_requirements_node", "check_missing_info_node")
-
-# # 필수 정보 누락 여부에 따라 다음 경로 분기
-# workflow.add_conditional_edges(
-#     "check_missing_info_node",
-#     route_after_missing_check,
+# workflow.add_conditional_edges( 
+#     "intent_router",
+#     route_after_intent_node,
 #     {
 #         "ask_user_node": "ask_user_node",
 #         "weather_node": "weather_node",
 #         "place_node": "place_node",
 #         "scheduler_node": "scheduler_node",
 #         "modify_node": "modify_node",
-#         "response_node": "response_node",
-#     },
+#         "response_node": "response_node", 
+#     }
 # )
+workflow.add_edge("intent_router", "extract_trip_requirements_node")
+workflow.add_edge("extract_trip_requirements_node", "check_missing_info_node")
+
+# 필수 정보 누락 여부에 따라 다음 경로 분기
+workflow.add_conditional_edges(
+    "check_missing_info_node",
+    route_after_missing_check,
+    {
+        "ask_user_node": "ask_user_node",
+        "weather_node": "weather_node",
+        "place_node": "place_node",
+        "scheduler_node": "scheduler_node",
+        "modify_node": "modify_node",
+        "response_node": "response_node",
+    },
+)
 
 workflow.add_edge("modify_node", "place_node")
 

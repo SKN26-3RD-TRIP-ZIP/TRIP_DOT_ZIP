@@ -52,4 +52,4 @@ def route_after_intent_node(state: TravelAgentState):
     print("[DEBUG] [start] route_after_intent_node")
     print(state)
     print("[DEBUG] [end]")
-    return state["intent"]
+    return state["route"]

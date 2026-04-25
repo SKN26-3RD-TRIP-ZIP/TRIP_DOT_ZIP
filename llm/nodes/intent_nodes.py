@@ -187,14 +187,14 @@ class intent_node():
             "weather_query": "weather",
             "schedule_generation": "schedule",
             "place_search": "place",
-            "travel_recommendation": "travel",
-            "general_chat": "chat"
+            "travel_recommendation": "place",
+            "general_chat": "response"
         }
 
         return {
             StateKeys.INTENT: llm_result.intent,
             StateKeys.CONFIDENCE: llm_result.confidence,
-            StateKeys.ROUTE: route_map.get(llm_result.intent, "chat"),
+            StateKeys.ROUTE: f'{route_map.get(llm_result.intent, "chat")}_node',
             # Extract의 정보
             StateKeys.DESTINATION: llm_result.destination,
             StateKeys.CONSTRAINTS: llm_result.constraints,
