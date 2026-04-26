@@ -117,7 +117,7 @@
 
 ### Core
 
-* **LLM**: GPT-4o-mini
+* **LLM**: GPT-4o-mini, GPT-4.1-mini, GPT-4.1
 * **Framework**: LangGraph (State 기반 Flow 제어)
 
 ### Data & API
