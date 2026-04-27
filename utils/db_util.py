@@ -283,6 +283,10 @@ def run_pipeline(
     # 1. 파싱 및 전처리
     chunks = parse_place_data(raw_data)
 
+    if not chunks:
+        print("[DEBUG] run_pipeline skipped: no review chunks were created from raw place data.")
+        return []
+
     # test_flag가 True인 경우, 전처리된 청크의 샘플을 출력하고 함수 종료
     if test_flag:
         print("\n[test_flag]] 전처리 결과 샘플:")
@@ -301,8 +305,16 @@ def run_pipeline(
     # 2. 임베딩
     embedder = OpenAIEmbedder()
     texts = [c.text_for_embedding for c in chunks]
+    if not texts:
+        print("[DEBUG] run_pipeline skipped: no texts available for embedding.")
+        return chunks
+
     embeddings = embedder.embed_batch(texts)
     print(f"임베딩된 {len(embeddings)}개 텍스트")
+
+    if not embeddings:
+        print("[DEBUG] run_pipeline skipped: embedding result is empty.")
+        return chunks
 
     # 3. Chroma DB 적재
     dbHandler = ChromaDBHandler(collection_name=collection_name, persist_dir=chroma_dir)

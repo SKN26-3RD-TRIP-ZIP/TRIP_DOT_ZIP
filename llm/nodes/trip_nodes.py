@@ -62,6 +62,22 @@ CONSTRAINT_ALIASES = {
     "2박3일": "2박3일",
 }
 
+ADD_CATEGORY_ALIASES = {
+    "음식점": "맛집",
+    "식당": "맛집",
+    "맛집": "맛집",
+    "레스토랑": "맛집",
+    "카페": "카페",
+    "디저트": "카페",
+    "커피": "카페",
+    "전시": "전시",
+    "미술관": "전시",
+    "박물관": "전시",
+    "관광": "관광",
+    "명소": "관광",
+    "액티비티": "액티비티",
+}
+
 
 def _extract_destination(user_text: str) -> str | None:
     # 자주 쓰는 여행지명과 세부 지역명을 기준으로 목적지를 추출합니다.
@@ -171,7 +187,7 @@ def _extract_date_fields(user_text: str) -> dict[str, Any]:
     if match_month_day:
         month = int(match_month_day.group(1))
         day = int(match_month_day.group(2))
-        result["travel_date"] = f"2026-{month:02d}-{day:02d}"
+        result["travel_date"] = f"{CURRENT_YEAR:04d}-{month:02d}-{day:02d}"
         return result
 
     for token in ["오늘", "내일", "모레", "글피", "이번주", "다음주"]:
@@ -350,6 +366,18 @@ def _normalize_constraint_values(values: list[Any]) -> list[str]:
     return normalized
 
 
+def _normalize_add_categories(values: list[Any]) -> list[str]:
+    normalized: list[str] = []
+    for value in values or []:
+        if not value:
+            continue
+        raw = str(value).strip()
+        canonical = ADD_CATEGORY_ALIASES.get(raw, raw)
+        if canonical not in normalized:
+            normalized.append(canonical)
+    return normalized
+
+
 def _split_trip_length_from_constraints(constraints: list[str], user_text: str) -> tuple[list[str], str | None]:
     # constraint 목록에 섞여 들어온 일정 길이 표현을 분리해 별도 필드로 보관한다.
     filtered_constraints: list[str] = []
@@ -385,6 +413,8 @@ Return JSON only with this shape:
   "relative_days": integer or null,
   "raw_date_text": string or null,
   "start_time": string or null,
+  "exclude_places": string[],
+  "add_categories": string[],
   "replace_styles": boolean,
   "reset_place_context": boolean,
   "route": string or null
@@ -400,13 +430,22 @@ Rules:
 - Use "replace_styles": true when the user explicitly excludes or swaps styles, like "카페 말고 맛집".
 - Use "reset_place_context": true only when the destination clearly changed.
 - Use "route": "travel" only when destination changed and old place/schedule context should be rebuilt.
+- exclude_places: If the user wants to remove or change a specific activity/time from the current itinerary, identify the place name from 'current_itinerary' and list it here. (e.g., "9시 일정 바꿔줘" -> look up what's at 9:00 in current_itinerary and put that place name here)
+- add_categories: If the user wants to add a specific type of place (e.g., "식당", "카페", "맛집"), list them here.
+- IMPORTANT: For requests like "...이후에 ...추가", include "ADD_AFTER_SPECIFIC_PLACE" in constraints with the reference place name. (e.g., "스카이로드 이후에 음식점 추가" -> add_categories: ["음식점"], constraints: ["ADD_AFTER:스카이로드"])
 - Do not invent a destination.
 """.strip()
 
     user_payload = {
         "current_state": current_state,
         "messages": normalized_messages,
+        "current_itinerary": current_state.get("itinerary", [])
     }
+
+    print(f"[DEBUG] _call_trip_extractor_llm user_payload keys: {user_payload.keys()}")
+    # current_itinerary가 리스트인 경우 디버깅 출력
+    if isinstance(user_payload["current_itinerary"], list):
+        print(f"[DEBUG] _call_trip_extractor_llm current_itinerary count: {len(user_payload['current_itinerary'])}")
 
     response = client.chat.completions.create(
         model=LLM_MODEL,
@@ -701,6 +740,7 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
         "relative_days": state.get(StateKeys.RELATIVE_DAYS),
         "raw_date_text": state.get(StateKeys.RAW_DATE_TEXT),
         "start_time": state.get(StateKeys.START_TIME),
+        "itinerary": state.get(StateKeys.ITINERARY, []),
     }
 
     # 1. LLM을 사용하여 수정된 의도 추출 시도
@@ -773,7 +813,13 @@ def modify_trip_requirements_node(state: TravelAgentState) -> dict:
             updates[StateKeys.TRAVEL_DATE] = None
             updates[StateKeys.RELATIVE_DAYS] = None
 
-    # 6. 시작 시간 처리
+    # 7. 추가 분석 데이터 (제외 장소, 추가 카테고리)
+    updates[StateKeys.EXCLUDE_PLACES] = llm_result.get("exclude_places") or []
+    updates[StateKeys.ADD_CATEGORIES] = _normalize_add_categories(
+        llm_result.get("add_categories") or []
+    )
+
+    # 8. 시작 시간 처리
     # 수정 요청 경로에서도 날짜 보정 규칙을 동일하게 적용한다.
     updates = _apply_implicit_year_correction(user_text, updates)
 
@@ -811,11 +857,19 @@ def select_places_node(state: TravelAgentState) -> dict:
     mapped_places = state.get(StateKeys.MAPPED_PLACES, [])
     existing_selected = state.get(StateKeys.SELECTED_PLACES, [])
     existing_itinerary = state.get(StateKeys.ITINERARY, [])
+    exclude_places = state.get(StateKeys.EXCLUDE_PLACES, [])
+    add_categories = state.get(StateKeys.ADD_CATEGORIES, [])
 
     # 현재 선택된 장소들이 현재 목적지와 부합하는지 확인하는 헬퍼 함수
     def is_valid_selected_places() -> bool:
         if not existing_selected or not current_dest:
             return False
+        
+        # 제외 요청된 장소가 이미 선택된 장소에 포함되어 있으면 무효화
+        if exclude_places:
+            for place in existing_selected:
+                if place.get("name") in exclude_places:
+                    return False
 
         for place in existing_selected:
             text = place.get("text", "")
@@ -826,16 +880,17 @@ def select_places_node(state: TravelAgentState) -> dict:
 
     # 이미 선택된 장소와 일정이 있는 경우
     if existing_selected and existing_itinerary:
-        if is_valid_selected_places():
-            print("[DEBUG] Existing selection valid for current destination. Keeping them.")
-            return {}   # 유효하면 그대로 유지
+        if is_valid_selected_places() and not add_categories:
+            print("[DEBUG] Existing selection valid and no new categories requested. Keeping them.")
+            return {}   # 유효하고 추가 요청 없으면 그대로 유지
 
-        # 도시가 바뀌었다면 기존 장소와 일정 초기화
-        print("[DEBUG] Destination changed. Resetting selected_places and itinerary.")
-        return {
-            StateKeys.SELECTED_PLACES: [],
-            StateKeys.ITINERARY: [],
-        }
+        # 도시가 바뀌었거나 제외/추가 요청이 있는 경우
+        print("[DEBUG] Changes requested (destination, exclude, or add). Re-selecting places.")
+        # 만약 도시가 바뀐게 아니라면, 기존 선택에서 제외할 장소만 빼고 나머지는 유지한 채 새로 채울 수 있음
+        # 여기서는 단순화를 위해 제외할 장소를 빼고 valid_mapped에서 새로 뽑도록 유도
+        if is_valid_selected_places() and (exclude_places or add_categories):
+             # 기존 선택에서 제외할 것만 필터링해서 유지
+             existing_selected = [p for p in existing_selected if p.get("name") not in exclude_places]
 
     # 검색된 전체 장소(mapped_places) 중 현재 도시와 관련된 것만 필터링
     if mapped_places and current_dest:
@@ -860,31 +915,91 @@ def select_places_node(state: TravelAgentState) -> dict:
     seen_names = set()
     restaurant_count = 0
 
+    # 기존 선택지 이름 미리 등록 (이미 필터링된 existing_selected 사용)
+    if existing_selected:
+        for p in existing_selected:
+            if p.get("name") not in seen_names:
+                seen_names.add(p.get("name"))
+                unique_selected.append(p)
+                cat = p.get("category", "").lower()
+                if any(kw in cat for kw in ["restaurant", "food", "맛집", "식당"]):
+                    restaurant_count += 1
+
+    # 새 장소 추가 처리
+    new_candidates = []
+    # add_categories가 있으면 해당 카테고리가 포함된 장소를 우선적으로 찾음
+    if add_categories:
+        for cat_req in add_categories:
+            for place in valid_mapped:
+                name = place.get("name")
+                if name in seen_names: continue
+                category = place.get("category", "").lower()
+                metadata = place.get("metadata", {}) if isinstance(place, dict) else {}
+                primary_type = str(metadata.get("place_category", "")).lower()
+                if cat_req in category or cat_req in primary_type:
+                    new_candidates.append(place)
+                    seen_names.add(name)
+                    break # 한 카테고리당 하나씩만 우선 추가
+    
+    # 여전히 자리가 남거나, add_categories가 없었던 경우 일반 후보 추가
     for place in valid_mapped:
         name = place.get("name")
-        category = place.get("category", "").lower()
-
-        # 1. 이름 중복 체크
         if name in seen_names:
             continue
-
-        # 2. 식당 중복 체크 (식당/맛집 카테고리는 1개만 허용)
-        is_restaurant = any(kw in category for kw in ["restaurant", "food", "맛집", "식당"])
-        if is_restaurant and restaurant_count >= 1:
-            continue  # 이미 식당이 하나 있으면 건너뜀
-
-        unique_selected.append(place)
+        new_candidates.append(place)
         seen_names.add(name)
-        if is_restaurant:
-            restaurant_count += 1
 
-        trip_length = state.get(StateKeys.TRIP_LENGTH) or "당일치기"
-        max_places = {"당일치기": 3, "1박2일": 6, "2박3일": 9}.get(trip_length, 3)
-
-        if len(unique_selected) >= max_places:
+    # ADD_AFTER 로직 처리
+    add_after_place = None
+    for c in state.get(StateKeys.CONSTRAINTS, []):
+        if c.startswith("ADD_AFTER:"):
+            add_after_place = c.replace("ADD_AFTER:", "").strip()
             break
 
-    # 최종 후보 3개 선택 및 일정 리셋 (scheduler가 새 일정을 짜도록 유도)
+    if add_after_place and new_candidates:
+        # 특정 장소 뒤에 삽입
+        final_selected = []
+        inserted = False
+        # unique_selected에 이미 existing_selected가 들어있음
+        for p in unique_selected:
+            final_selected.append(p)
+            if not inserted and add_after_place in p.get("name", ""):
+                final_selected.append(new_candidates[0])
+                inserted = True
+        
+        # 찾지 못했다면 맨 뒤에 추가
+        if not inserted:
+            final_selected.append(new_candidates[0])
+        
+        unique_selected = final_selected
+    elif add_categories and new_candidates:
+        # 단순 추가 요청인 경우 맨 뒤에 추가
+        unique_selected = unique_selected + [new_candidates[0]]
+    else:
+        # 기존 로직 (새로 구성)
+        unique_selected = []
+        # 초기화해서 다시 담음 (기존 seen_names 활용 가능하지만 logic 상 새로 구성하는게 안전할 때가 있음)
+        # 단, 여기서는 valid_mapped에서 순차적으로 뽑음
+        seen_names_inner = set()
+        restaurant_count_inner = 0
+        
+        for place in valid_mapped:
+            name = place.get("name")
+            category = place.get("category", "").lower()
+            if name in seen_names_inner: continue
+            is_restaurant = any(kw in category for kw in ["restaurant", "food", "맛집", "식당"])
+            if is_restaurant and restaurant_count_inner >= 1: continue
+            unique_selected.append(place)
+            seen_names_inner.add(name)
+            if is_restaurant: restaurant_count_inner += 1
+            
+            trip_length = state.get(StateKeys.TRIP_LENGTH) or "미정"
+            max_places = {"당일치기": 3, "1박2일": 6, "2박3일": 9}.get(trip_length, 3)
+            if len(unique_selected) >= max_places: break
+
+    # 추가 요청(add_categories)이 있는 경우, 일차별 최대 장소 개수 제한을 유연하게 적용
+    # 당일치기여도 사용자가 명시적으로 "하나 더"를 요청했다면 4개까지 허용 가능하도록 스케줄러에 넘김
+    # (scheduler_service는 들어온 places를 다 그림)
     selected = unique_selected
 
     print(f"[DEBUG] New places selected for {current_dest}. Resetting itinerary for scheduler.")

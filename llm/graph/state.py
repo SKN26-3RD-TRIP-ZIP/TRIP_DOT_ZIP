@@ -73,7 +73,8 @@ class TravelAgentState(TypedDict, total=False):
     raw_date_text: str
     trip_length: str
     start_time: str
-
+    exclude_places: List[str]
+    add_categories: List[str]
     # 장소 / 일정 / 날씨
     mapped_places: Annotated[List[Dict], overwrite_list]
     selected_places: Annotated[List[Dict], overwrite_list]

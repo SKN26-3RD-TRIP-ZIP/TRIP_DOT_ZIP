@@ -31,6 +31,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 GUIDE_MOUSE_IMAGE = PROJECT_ROOT / "assets" / "tripdotzip_guide_mouse.png"
 MOUSE_ICON_IMAGE = PROJECT_ROOT / "assets" / "tripdotzip_mouse_icon.png"
+HURT_MOUSE_IMAGE = PROJECT_ROOT / "assets" / "tripdotzip_hurt.png"
+RAIN_MOUSE_IMAGE = PROJECT_ROOT / "assets" / "tripdotzip_rain.png"
 
 
 def load_css() -> None:
@@ -140,13 +142,35 @@ def render_message(message: dict) -> None:
     avatar = "나" if role == "user" else f'<img src="{mouse_icon}" alt="트립땃쥐">'
     content = html.escape(message["content"]).replace("\n", "<br>")
     timestamp = html.escape(message.get("time", ""))
+    bubble_extra_class = ""
+
+    if role != "user" and "땃쥐가 상처받" in message.get("content", ""):
+        hurt_image_src = image_data_uri(str(HURT_MOUSE_IMAGE))
+        if hurt_image_src:
+            content = (
+                f'<div class="status-inline">'
+                f'<img class="status-inline-mouse" src="{hurt_image_src}" alt="상처받은 트립땃쥐">'
+                f'<div class="status-inline-text">{content}</div>'
+                f'</div>'
+            )
+            bubble_extra_class = " status-bubble"
+    elif role != "user" and "땃쥐가 우산을 챙겼어요!" in message.get("content", ""):
+        rain_image_src = image_data_uri(str(RAIN_MOUSE_IMAGE))
+        if rain_image_src:
+            content = (
+                f'<div class="status-inline">'
+                f'<img class="status-inline-mouse" src="{rain_image_src}" alt="우산 든 트립땃쥐">'
+                f'<div class="status-inline-text">{content}</div>'
+                f'</div>'
+            )
+            bubble_extra_class = " status-bubble"
 
     st.markdown(
         f"""
         <div class="bubble-wrapper {wrapper_class}">
             <div class="avatar {avatar_class}">{avatar}</div>
             <div class="message-group">
-                <div class="bubble {avatar_class}">{content}</div>
+                <div class="bubble {avatar_class}{bubble_extra_class}">{content}</div>
                 <div class="timestamp">{timestamp}</div>
             </div>
         </div>
@@ -196,7 +220,7 @@ def render_left_panel() -> None:
     mouse_icon = image_data_uri(str(MOUSE_ICON_IMAGE))
     destination = st.session_state.get("destination") or "미정"
     travel_date = st.session_state.get("travel_date") or "미정"
-    trip_length = st.session_state.get("trip_length") or "당일치기"
+    trip_length = st.session_state.get("trip_length") or "미정"
     styles = format_list_value(st.session_state.get("styles", []))
 
     st.markdown(

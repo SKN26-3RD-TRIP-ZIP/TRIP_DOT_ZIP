@@ -119,7 +119,20 @@ def _get_day_count(trip_length: str | None) -> int:
 def _split_places_by_day(places: list, trip_length: str | None) -> list[list]:
     """선택된 장소를 여행 일수에 맞춰 일차별로 고르게 분배합니다."""
     day_count = _get_day_count(trip_length)
-    return [places[index::day_count] for index in range(day_count)]
+    if day_count == 1:
+        return [places]
+        
+    # 일수별로 고르게 분배하되, 순서가 섞이지 않도록 함
+    chunks = []
+    avg = len(places) // day_count
+    rem = len(places) % day_count
+    
+    start = 0
+    for i in range(day_count):
+        size = avg + (1 if i < rem else 0)
+        chunks.append(places[start:start+size])
+        start += size
+    return chunks
 
 
 def create_schedule(

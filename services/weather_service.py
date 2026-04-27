@@ -585,11 +585,13 @@ def extract_trip_info_with_llm(user_prompt: str) -> dict:
     Returns:
         dict: 추출 결과
     """
+    today = date.today()
+    weekday_kr = ["월", "화", "수", "목", "금", "토", "일"][today.weekday()]
 
-    extraction_system_prompt = """
+    extraction_system_prompt = f"""
     당신은 여행 정보 추출기입니다.
-    오늘 날짜는 2026-04-20 입니다.
-    오늘은 월요일입니다.
+    오늘 날짜는 {today.isoformat()} 입니다.
+    오늘은 {weekday_kr}요일입니다.
 
     사용자 문장에서 여행 도시와 날짜를 추출하세요.
     반드시 JSON만 출력하세요.
@@ -602,12 +604,12 @@ def extract_trip_info_with_llm(user_prompt: str) -> dict:
     4. 계산이 불가능하면 travel_date는 null로 두고 raw_date_text에 원문을 넣으세요.
 
     출력 형식:
-    {
+    {{
       "city_name": "부산",
-      "travel_date": "2026-04-30",
+      "travel_date": "{today.isoformat()}",
       "end_date": null,
       "raw_date_text": "다음주 목요일"
-    }
+    }}
     """
 
     try:

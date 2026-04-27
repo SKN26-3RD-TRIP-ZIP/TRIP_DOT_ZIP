@@ -279,6 +279,27 @@ html, body, [class*="css"] {
     color: var(--trip-user-text);
 }
 
+.status-bubble {
+    padding: 12px 16px;
+}
+
+.status-inline {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.status-inline-mouse {
+    width: 108px;
+    height: 108px;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+
+.status-inline-text {
+    flex: 1 1 auto;
+}
+
 .loading-bubble {
     display: flex;
     align-items: center;

@@ -113,20 +113,29 @@ def get_places_by_api(destination:str, constraints: List[str], search_task:List[
 def place_node(state: TravelAgentState) -> dict:
     print(f'[DEBUG] PLACE NODE 진입 {state}')
 
-    # 만약 상태값 체크가 필요하면, 상태값 체크
     # 도착지
     destination = state.get(StateKeys.DESTINATION) or ""
-
     # 제약조건 
     constraints = state.get(StateKeys.CONSTRAINTS) or []
+    # 이미 매핑된 장소가 있는지 확인
+    mapped_places = state.get(StateKeys.MAPPED_PLACES, [])
+    # 추가로 검색할 카테고리가 있는지 확인
+    add_categories = state.get(StateKeys.ADD_CATEGORIES, [])
 
-    temp_places = []
+    # 이미 장소가 있고, 추가 카테고리 요청도 없다면 API 호출 건너뜀
+    if mapped_places and not add_categories:
+        print("[DEBUG] Mapped places already exist. Skipping API call.")
+        return {StateKeys.STATE_TYPE_CD: "02"}
 
     # 검색 전략 정의(관광지/식음료)
-    search_tasks = [
-        {"styles": ["관광명소", "가볼만한 곳", "추천여행지", "액티비티"]},  # 관광지
-        {"styles": ["카페", "맛집", "식당"]}                            # 식음료
-    ]
+    if add_categories:
+        print(f"[DEBUG] Additional categories requested: {add_categories}")
+        search_tasks = [{"styles": add_categories}]
+    else:
+        search_tasks = [
+            {"styles": ["관광명소", "가볼만한 곳", "추천여행지", "액티비티"]},  # 관광지
+            {"styles": ["카페", "맛집", "식당"]}                            # 식음료
+        ]
 
     # Google API 호출
     api_result = get_places_by_api(destination, constraints, search_tasks)
@@ -142,6 +151,9 @@ def place_node(state: TravelAgentState) -> dict:
             collection_name=Settings.CHROMA_COLLECTION_NAME, 
             test_flag=False
         )
+
+        if not result_chunk:
+            print("[DEBUG] place_node: pipeline produced no chunks; continuing without DB upsert.")
 
         return {StateKeys.STATE_TYPE_CD: "02"}
 

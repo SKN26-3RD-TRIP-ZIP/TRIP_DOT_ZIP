@@ -98,7 +98,7 @@ def should_block_by_score(category_scores: dict) -> bool:
     for category, score in category_scores.items():
         if score >= GLOBAL_BLOCK_THRESHOLD:
             print(
-                f"🚫 score 차단: {category}={score:.4f} "
+                f"[safety] score blocked: {category}={score:.4f} "
                 f"(threshold={GLOBAL_BLOCK_THRESHOLD})"
             )
             return True
@@ -125,19 +125,19 @@ def should_block(client: OpenAI, text: str) -> bool:
     bad_word_hit = contains_bad_word(text)
 
     if contains_bad_word(text):
-        print("⚠️ bad word 감지: soft 필터 적용 예정, moderation도 계속 실행")
+        print("[safety] bad word detected: applying soft filter and continuing moderation")
 
     mod = check_moderation(client, text)
 
-    print("🔍 moderation flagged:", mod["flagged"])
-    print("🔍 moderation categories:", mod["categories"])
+    print("[safety] moderation flagged:", mod["flagged"])
+    print("[safety] moderation categories:", mod["categories"])
     filtered_scores = {
         k: v for k, v in mod["scores"].items()
         if v >= GLOBAL_BLOCK_THRESHOLD
     }
 
     if filtered_scores:
-        print("🚫 threshold 초과:", filtered_scores)
+        print("[safety] threshold exceeded:", filtered_scores)
 
 
     return bad_word_hit or should_block_by_score(mod["scores"])
@@ -171,15 +171,15 @@ def profanity_middleware(openai_client: OpenAI):
         ]
         full_text = " ".join(user_texts)
 
-        print("🔥 profanity middleware 실행됨")
-        print("입력:", full_text)
+        print("[safety] profanity middleware running")
+        print("[safety] input:", full_text)
 
         if should_block(openai_client, full_text):
-            print("🚫 차단됨")
+            print("[safety] blocked")
             raise ValueError("땃쥐가 상처받아 뒤돌았습니다.")
 
         if contains_bad_word(full_text):
-            print("🚫 욕설 차단됨")
+            print("[safety] profanity blocked")
             raise ValueError("땃쥐가 상처받아 뒤돌았습니다.")
 
         return next_(request)

@@ -42,7 +42,9 @@ def route_after_intent_node(state: TravelAgentState):
     # 현재는 안정성을 위해 제외하거나,
     # 추후 place context 검증 후 활성화 권장
     if route == "schedule":
-        return "response_node"
+        if _has_place_context(state):
+            return "scheduler_node"
+        return "extract_trip_requirements_node"
 
     # 일정 수정 요청
     if route == "modify":

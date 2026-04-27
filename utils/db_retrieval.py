@@ -70,7 +70,6 @@ def rerank_places(
             or ""
         )
         tags = metadata.get("tags") or ""
-
         # 검색에 활용할 장소 정보를 하나의 문자열로 합칩니다.
         combined_text = f"{name} {category} {text} {address} {tags}".lower()
 
@@ -249,10 +248,16 @@ def get_integrated_search_results(
         document_contents="text_for_embedding",
         metadata_field_info=metadata_field_info,
         search_kwargs={"k": k},
+        use_corrector=True,
+        verbose=True
     )
 
     # 사용자 질의 기반 검색 실행
-    docs = retriever.invoke(user_query)
+    try:
+        docs = retriever.invoke(user_query)
+    except Exception as e:
+        print(f"[ERROR] SelfQueryRetriever failed: {e}. Falling back to basic similarity search.")
+        docs = vectorstore.similarity_search(user_query, k=k)
 
     search_results = []
     seen_place_ids = set()

@@ -6,7 +6,7 @@ import base64
 import re
 import json
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import streamlit as st
@@ -389,7 +389,7 @@ def invoke_tool(tool, payload: dict) -> dict:
 def get_mock_preview() -> dict:
     info = st.session_state.trip_info
     destination = info["destination"] if info["destination"] != "미정" else "강릉"
-    trip_date = info["date"] if info["date"] != "미정" else "2026-05-14"
+    trip_date = info["date"] if info["date"] != "미정" else date.today().isoformat()
     style = info["style"] if info["style"] != "미정" else "휴식형"
 
     weather = invoke_tool(get_weather, {"destination": destination, "date": trip_date})

@@ -6,7 +6,7 @@ from services.scheduler_service import create_schedule
 def scheduler_node(state: TravelAgentState) -> dict:
     selected_places = state.get(StateKeys.SELECTED_PLACES, [])
     start_time = state.get(StateKeys.START_TIME, "09:00")
-    trip_length = state.get(StateKeys.TRIP_LENGTH, "당일치기")
+    trip_length = state.get(StateKeys.TRIP_LENGTH, "미정")
 
     if not selected_places:
         print("[DEBUG] scheduler_node skipped: no validated selected_places")

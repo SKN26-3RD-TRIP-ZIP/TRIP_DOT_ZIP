@@ -33,6 +33,8 @@ class StateKeys:
     START_TIME = "start_time"
     MISSING_SLOTS = "missing_slots"
     STATE_TYPE_CD = "state_type_cd"
+    EXCLUDE_PLACES = "exclude_places"
+    ADD_CATEGORIES = "add_categories"
 
     # 안전 차단
     BLOCKED = "blocked"

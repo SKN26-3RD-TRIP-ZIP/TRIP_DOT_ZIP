@@ -187,8 +187,8 @@ def build_response_node(state: TravelAgentState) -> dict:
       - 'modify':
         If an itinerary exists, do not discard the previous plan.
         Replace only the relevant activity while keeping the rest.
-        Start with a phrase like:
-        "서핑을 추가해서 일정을 살짝 수정해봤어요!"
+        If the destination city remains the same, use phrases like "일정을 업데이트했습니다" or "장소를 변경해봤어요".
+        ONLY say the destination was "changed" if the city (destination) is actually different from the previous one.
 
     [Tone]
     - Concise, helpful, and conversational in polite Korean.

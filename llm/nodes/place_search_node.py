@@ -1,5 +1,5 @@
-from llm.graph.state import TravelAgentState
 from llm.graph.contracts import StateKeys
+from llm.graph.state import TravelAgentState
 from utils.db_retrieval import get_integrated_search_results
 
 
@@ -10,21 +10,27 @@ def place_search_node(state: TravelAgentState) -> dict:
     """
     # 1. 검색 쿼리 조합 (분석된 정보들 활용)
     destination = state.get(StateKeys.DESTINATION, "")
-    styles = ", ".join(state.get(StateKeys.STYLES, []))
-    constraints = ", ".join(state.get(StateKeys.CONSTRAINTS, []))
+    styles = state.get(StateKeys.STYLES, [])
+    constraints = state.get(StateKeys.CONSTRAINTS, [])
+    add_categories = state.get(StateKeys.ADD_CATEGORIES, [])
 
     # 1. 스타일 키워드 우선순위 재정렬
     # 일반적인 키워드 리스트 (나머지는 구체적 키워드로 간주하여 앞으로 배치)
     generic_keywords = {"맛집", "식당", "카페", "디저트", "관광", "명소"}
 
-    specific_styles = [s for s in styles if s not in generic_keywords]
-    generic_styles = [s for s in styles if s in generic_keywords]
+    requested_styles = []
+    for value in [*styles, *add_categories]:
+        if value and value not in requested_styles:
+            requested_styles.append(value)
+
+    specific_styles = [s for s in requested_styles if s not in generic_keywords]
+    generic_styles = [s for s in requested_styles if s in generic_keywords]
 
     # 구체적 키워드를 앞쪽에 배치하여 쿼리 가중치 유도
     reordered_styles = ", ".join(specific_styles + generic_styles)
 
     # 2. 검색 쿼리 조합 (예: "부산 서핑, 액티비티, 맛집 실내 위주")
-    search_query = f"{destination} {reordered_styles} {constraints}".strip()
+    search_query = f"{destination} {reordered_styles} {', '.join(constraints)}".strip()
 
     # 쿼리가 비어 있는 경우
     if not search_query:
@@ -36,7 +42,13 @@ def place_search_node(state: TravelAgentState) -> dict:
 
     # 2. Self-Querying 검색 실행
     # k값은 select_places_node가 선택할 수 있도록 여유 있게(10개 정도) 가져옵니다.
-    raw_results = get_integrated_search_results(search_query, k=10)
+    raw_results = get_integrated_search_results(
+        search_query,
+        k=10,
+        destination=destination,
+        preferences=requested_styles,
+        constraints=constraints,
+    )
 
     # 3. 결과 저장 (mapped_places에 리스트 형태로 저장)
     return {StateKeys.MAPPED_PLACES: raw_results}
